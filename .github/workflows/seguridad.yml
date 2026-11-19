@@ -1,0 +1,58 @@
+name: Seguridad
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  controles:
+    name: Build Breaker
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Preparar herramientas de seguridad
+        run: |
+          python -m venv "$RUNNER_TEMP/tools"
+          "$RUNNER_TEMP/tools/bin/pip" install bandit pip-audit cyclonedx-bom
+          echo "$RUNNER_TEMP/tools/bin" >> "$GITHUB_PATH"
+
+      - name: Instalar dependencias de la API
+        run: |
+          python3.11 -m venv "$RUNNER_TEMP/api"
+          "$RUNNER_TEMP/api/bin/pip" install -r requirements.txt
+
+      - name: Generar SBOM CycloneDX
+        run: |
+          cyclonedx-py environment "$RUNNER_TEMP/api/bin/python" \
+            --output-format JSON -o sbom.json
+
+      - name: Analizar el código con Bandit
+        if: ${{ !cancelled() }}
+        run: bandit app.py -ll -f json -o bandit.json
+
+      - name: Auditar dependencias con pip-audit
+        if: ${{ !cancelled() }}
+        run: pip-audit -r requirements.txt --aliases -f json -o auditoria.json
+
+      - name: Ejecutar pruebas funcionales
+        if: ${{ !cancelled() && hashFiles('test_api.py') != '' }}
+        run: '"$RUNNER_TEMP/api/bin/python" -m unittest -v'
+
+      - name: Guardar reportes
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencias-${{ github.sha }}
+          path: |
+            sbom.json
+            bandit.json
+            auditoria.json
