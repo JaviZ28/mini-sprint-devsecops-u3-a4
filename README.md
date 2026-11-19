@@ -1,51 +1,27 @@
-# API REST de práctica: SAST y SCA
+# API de práctica DevSecOps
 
-API Flask local con fallos **intencionales** para el laboratorio: una clave fija en el código, una consulta SQL vulnerable y dependencias desactualizadas. Usa únicamente los datos ficticios incluidos; no agregues credenciales reales ni la expongas a una red pública.
+API local corregida: consulta parametrizada, contraseñas con hash y credenciales en variables de entorno.
 
-## Requisitos y ejecución
-
-1. Abre PowerShell en esta carpeta.
-2. Crea y activa un entorno virtual:
-
-   ```powershell
-   py -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   ```
-
-3. Instala las dependencias del escenario vulnerable:
-
-   ```powershell
-   python -m pip install -r requirements.txt
-   ```
-
-4. Inicia la API:
-
-   ```powershell
-   python app.py
-   ```
-
-La API escucha solo en `http://127.0.0.1:5000`. Al iniciar crea `practica.db` con usuarios ficticios.
-
-## Endpoints
-
-- `GET /api/health` — comprueba que la API está activa.
-- `GET /api/profile` — requiere el encabezado `X-API-Key` con el valor de demostración que aparece en `app.py`.
-- `POST /api/login` — recibe JSON con `username` y `password`; usa `admin` / `AdminDemo123!` o `estudiante` / `Practica123!` para el caso válido.
-
-Ejemplo de cuerpo para `POST /api/login`:
-
-```json
-{"username":"admin","password":"AdminDemo123!"}
-```
-
-## Análisis de seguridad
-
-Desde esta carpeta puedes analizar el código y las dependencias, por ejemplo:
+## Ejecución en PowerShell
 
 ```powershell
-python -m pip install bandit pip-audit
-bandit -r app.py -f txt
-pip-audit -r requirements.txt
+py -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
 ```
 
-La práctica consiste en registrar los hallazgos, corregirlos (consultas parametrizadas, secretos desde variables de entorno y actualización de dependencias) y volver a ejecutar los análisis para comparar los resultados. No uses los ejemplos de inyección contra servicios externos.
+Crea `.env` a partir de `.env.example` y asigna valores privados a `API_KEY`, `ADMIN_PASSWORD` y `STUDENT_PASSWORD`. No compartas ni subas `.env`. Para generar valores aleatorios en un archivo nuevo:
+
+```powershell
+.\.venv\Scripts\python -c "from pathlib import Path; import secrets; Path('.env').open('x').writelines(k+'='+secrets.token_hex(24)+'\n' for k in ('API_KEY','ADMIN_PASSWORD','STUDENT_PASSWORD'))"
+.\.venv\Scripts\python app.py
+```
+
+La API escucha en `127.0.0.1:5000`. `GET /api/health` comprueba el servicio; `GET /api/profile` requiere `X-API-Key`; `POST /api/login` recibe `username` y `password` de las cuentas `admin` o `estudiante`. La base `practica_sprint.db` es independiente de la base original. Al reiniciar se actualizan los hashes a partir de las contraseñas del entorno.
+
+## Pruebas
+
+```powershell
+.\.venv\Scripts\python -m unittest -v
+```
+
+El flujo de GitHub Actions ejecuta Bandit, pip-audit, pruebas y genera un SBOM.
